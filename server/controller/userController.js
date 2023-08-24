@@ -1,37 +1,47 @@
 var User = require('../models/User');
 var csv = require('csvtojson');
+const async = require('async');
 
-
-const importUser =async(req , res)=>{
-
+const importUser = async (req, res) => {
     try {
-        var userData = [];
-        csv()
-        .fromFile(req.file.open)
-        .then(async(response)=>{
-            // console.log(response);
-            for(var x =0 ; x<response.length ; x++){
-                 userData.push({
-                 name: response[x].name,
-                 email: response[x].email,
-                 mobile_no : response[x]. mobile_no,
-                 dob : response[x].dob,
-                 work_exp : response[x].work_exp,
-                 resume_title : response[x].resume_title,
-                 current_location : response[x].current_location,
-                 postal_address : response[x].postal_address,
-                 current_employer : response[x].current_employer,
-                 urrent_designation : response[x].current_designation
-                 });
+        const response = await csv().fromFile(req.file.open);
+
+        async.eachSeries(response, async (rowData, callback) => {
+            const existingUser = await User.findOne({ email: rowData.email });
+
+            if (existingUser) {
+               
+                console.log(`User with email ${rowData.email} already exists.`);
+             
+            } else {
+                // If not a duplicate, create a new user
+                await User.create({
+                    name: rowData.name,
+                    email: rowData.email,
+                    mobile_no: rowData.mobile_no,
+                    dob: rowData.dob,
+                    work_exp: rowData.work_exp,
+                    resume_title: rowData.resume_title,
+                    current_location: rowData.current_location,
+                    postal_address: rowData.postal_address,
+                    current_employer: rowData.current_employer,
+                    current_designation: rowData.current_designation
+                });
             }
-            await User.insertMany(userData);
-        })
-        res.send({status : 400 , success : true , msg : 'running'});
+
+            callback(); 
+        }, (err) => {
+            if (err) {
+                res.status(400).send({ success: false, msg: err.message });
+            } else {
+                res.send({ success: true, msg: 'Successfully uploaded data' });
+            }
+        });
+    } catch (error) {
+        res.status(400).send({ success: false, msg: error.message });
     }
-    catch (error) {
-        res.send({status : 400 , success : true , msg:error.message});
-    }
-}
+};
+
 module.exports = {
     importUser
-}
+};
